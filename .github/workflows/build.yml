@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Code
+    - name: Checkout Repository
       uses: actions/checkout@v4
 
     - name: Set up JDK 17
@@ -18,9 +18,17 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # 1. 누락될 수 있는 안드로이드 빌드 설정(Gradle) 자동 생성
-    - name: Setup Project Configs
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    # 1. 모든 소스코드 및 프로젝트 구조 자동 생성 (수동 다운로드 필요 없음)
+    - name: Generate All Source Codes Automatically
       run: |
+        # 폴더 구조 생성
+        mkdir -p app/src/main/java/com/example/mddanalyzer
+        mkdir -p app/src/main/res/layout
+
+        # [1] settings.gradle
         cat << 'EOF' > settings.gradle
         pluginManagement {
             repositories {
@@ -41,6 +49,7 @@ jobs:
         include ':app'
         EOF
 
+        # [2] 루트 build.gradle
         cat << 'EOF' > build.gradle
         plugins {
             id 'com.android.application' version '8.2.2' apply false
@@ -48,7 +57,7 @@ jobs:
         }
         EOF
 
-        mkdir -p app
+        # [3] 앱 모듈 build.gradle (라이브러리 세팅)
         cat << 'EOF' > app/build.gradle
         plugins {
             id 'com.android.application'
@@ -82,16 +91,372 @@ jobs:
         }
         EOF
 
-    # 2. Gradle Wrapper 설치 및 APK 빌드
+        # [4] AndroidManifest.xml (인터넷 권한)
+        cat << 'EOF' > app/src/main/AndroidManifest.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <application
+                android:allowBackup="true"
+                android:label="Stock MDD Analyzer"
+                android:theme="@style/Theme.AppCompat.Light.DarkActionBar">
+                <activity android:name=".MainActivity" android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        # [5] activity_main.xml (화면 UI 레이아웃)
+        cat << 'EOF' > app/src/main/res/layout/activity_main.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:padding="16dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="주가 MDD 사이클 분석기"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp"/>
+                <EditText
+                    android:id="@+id/etTicker"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="종목 티커 (예: QQQ, AAPL)"
+                    android:text="QQQ" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <EditText
+                        android:id="@+id/etStartDate"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:hint="시작일 (YYYY-MM-DD)"
+                        android:text="2018-01-01" />
+                    <EditText
+                        android:id="@+id/etEndDate"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:hint="종료일 (YYYY-MM-DD)"
+                        android:text="2024-01-01" />
+                </LinearLayout>
+                <EditText
+                    android:id="@+id/etThresholdMDD"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="평가 MDD % (예: 15 입력 시 -15%)"
+                    android:inputType="numberDecimal"
+                    android:text="15" />
+                <Button
+                    android:id="@+id/btnAnalyze"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="야후 파이낸스 데이터 분석 시작" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="■ 사이클 분석 결과 요약"
+                    android:textStyle="bold"
+                    android:layout_marginTop="16dp"/>
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp">
+                    <TableLayout
+                        android:id="@+id/tableResult"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:stretchColumns="*" />
+                </HorizontalScrollView>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="■ 주가 흐름 그래프"
+                    android:textStyle="bold"
+                    android:layout_marginTop="20dp"/>
+                <com.github.mikephil.charting.charts.LineChart
+                    android:id="@+id/lineChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="250dp"
+                    android:layout_marginTop="8dp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="■ 사이클별 MDD 분포 히스토그램 (10구간)"
+                    android:textStyle="bold"
+                    android:layout_marginTop="20dp"/>
+                <com.github.mikephil.charting.charts.BarChart
+                    android:id="@+id/histogramChart"
+                    android:layout_width="match_parent"
+                    android:layout_height="250dp"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="32dp"/>
+            </LinearLayout>
+        </ScrollView>
+        EOF
+
+        # [6] MainActivity.kt (핵심 분석 및 계산 로직)
+        cat << 'EOF' > app/src/main/java/com/example/mddanalyzer/MainActivity.kt
+        package com.example.mddanalyzer
+
+        import android.graphics.Color
+        import android.os.Bundle
+        import android.widget.*
+        import androidx.appcompat.app.AppCompatActivity
+        import com.github.mikephil.charting.charts.BarChart
+        import com.github.mikephil.charting.charts.LineChart
+        import com.github.mikephil.charting.components.XAxis
+        import com.github.mikephil.charting.data.*
+        import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+        import kotlinx.coroutines.*
+        import okhttp3.OkHttpClient
+        import okhttp3.Request
+        import org.json.JSONObject
+        import java.text.SimpleDateFormat
+        import java.util.*
+        import kotlin.math.abs
+
+        data class PriceBar(val date: Date, val close: Double)
+        data class Cycle(
+            val cycleNum: Int,
+            val peakDate: Date,
+            val peakPrice: Double,
+            val mddDate: Date,
+            val mddPrice: Double,
+            val mddPercent: Double,
+            val peakToMddDays: Long,
+            val recoveryDate: Date,
+            val mddToRecovDays: Long,
+            var nextPeakPrice: Double = 0.0,
+            var recovToNextPeakReturn: Double = 0.0,
+            var recovToNextPeakDays: Long = 0L
+        )
+
+        class MainActivity : AppCompatActivity() {
+            private val client = OkHttpClient()
+            private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.KOREA)
+
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                setContentView(R.layout.activity_main)
+
+                val etTicker = findViewById<EditText>(R.id.etTicker)
+                val etStart = findViewById<EditText>(R.id.etStartDate)
+                val etEnd = findViewById<EditText>(R.id.etEndDate)
+                val etThreshold = findViewById<EditText>(R.id.etThresholdMDD)
+                val btnAnalyze = findViewById<Button>(R.id.btnAnalyze)
+
+                btnAnalyze.setOnClickListener {
+                    val ticker = etTicker.text.toString().trim()
+                    val startStr = etStart.text.toString().trim()
+                    val endStr = etEnd.text.toString().trim()
+                    val threshold = etThreshold.text.toString().toDoubleOrNull() ?: 15.0
+
+                    CoroutineScope(Dispatchers.IO).launch {
+                        try {
+                            val prices = fetchYahooData(ticker, startStr, endStr)
+                            val cycles = analyzeCycles(prices, threshold)
+                            withContext(Dispatchers.Main) {
+                                displayTable(cycles)
+                                drawLineChart(prices)
+                                drawHistogram(cycles)
+                            }
+                        } catch (e: Exception) {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(this@MainActivity, "오류: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                }
+            }
+
+            private fun fetchYahooData(ticker: String, startStr: String, endStr: String): List<PriceBar> {
+                val p1 = dateFormat.parse(startStr)!!.time / 1000
+                val p2 = dateFormat.parse(endStr)!!.time / 1000
+                val url = "https://query1.finance.yahoo.com/v8/finance/chart/$ticker?period1=$p1&period2=$p2&interval=1d"
+                val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").build()
+                val response = client.newCall(request).execute()
+                val jsonStr = response.body?.string() ?: throw Exception("데이터 수신 실패")
+                val result = JSONObject(jsonStr).getJSONObject("chart").getJSONArray("result").getJSONObject(0)
+                val timestamps = result.getJSONArray("timestamp")
+                val quote = result.getJSONObject("indicators").getJSONArray("quote").getJSONObject(0)
+                val closes = quote.getJSONArray("close")
+
+                val list = mutableListOf<PriceBar>()
+                for (i in 0 until timestamps.length()) {
+                    if (!closes.isNull(i)) {
+                        list.add(PriceBar(Date(timestamps.getLong(i) * 1000), closes.getDouble(i)))
+                    }
+                }
+                return list
+            }
+
+            private fun analyzeCycles(data: List<PriceBar>, thresholdPercent: Double): List<Cycle> {
+                val cycles = mutableListOf<Cycle>()
+                if (data.isEmpty()) return cycles
+
+                var curPeak = data[0].close
+                var curPeakDate = data[0].date
+                var minPriceInCycle = curPeak
+                var minDateInCycle = curPeakDate
+                var inCycle = false
+                var cycleCount = 1
+
+                for (bar in data) {
+                    val dd = (bar.close - curPeak) / curPeak * 100.0
+                    if (!inCycle) {
+                        if (bar.close > curPeak) {
+                            curPeak = bar.close
+                            curPeakDate = bar.date
+                        } else if (dd <= -thresholdPercent) {
+                            inCycle = true
+                            minPriceInCycle = bar.close
+                            minDateInCycle = bar.date
+                        }
+                    } else {
+                        if (bar.close < minPriceInCycle) {
+                            minPriceInCycle = bar.close
+                            minDateInCycle = bar.date
+                        }
+                        if (bar.close >= curPeak) {
+                            val mddVal = (minPriceInCycle - curPeak) / curPeak * 100.0
+                            val pToMDays = (minDateInCycle.time - curPeakDate.time) / (1000 * 3600 * 24)
+                            val mToRDays = (bar.date.time - minDateInCycle.time) / (1000 * 3600 * 24)
+
+                            cycles.add(Cycle(
+                                cycleNum = cycleCount++,
+                                peakDate = curPeakDate,
+                                peakPrice = curPeak,
+                                mddDate = minDateInCycle,
+                                mddPrice = minPriceInCycle,
+                                mddPercent = mddVal,
+                                peakToMddDays = pToMDays,
+                                recoveryDate = bar.date,
+                                mddToRecovDays = mToRDays
+                            ))
+                            inCycle = false
+                            curPeak = bar.close
+                            curPeakDate = bar.date
+                        }
+                    }
+                }
+
+                for (i in 0 until cycles.size - 1) {
+                    val cur = cycles[i]
+                    val next = cycles[i + 1]
+                    cur.nextPeakPrice = next.peakPrice
+                    cur.recovToNextPeakReturn = ((next.peakPrice - cur.peakPrice) / cur.peakPrice) * 100.0
+                    cur.recovToNextPeakDays = (next.peakDate.time - cur.recoveryDate.time) / (1000 * 3600 * 24)
+                }
+                return cycles
+            }
+
+            private fun displayTable(cycles: List<Cycle>) {
+                val table = findViewById<TableLayout>(R.id.tableResult)
+                table.removeAllViews()
+                val headers = arrayOf("회차", "MDD(%)", "고점~MDD", "MDD~회복", "다음고점상승률", "상승기간")
+                val headerRow = TableRow(this)
+                for (h in headers) {
+                    headerRow.addView(TextView(this).apply {
+                        text = h
+                        setPadding(16, 12, 16, 12)
+                        setBackgroundColor(Color.LTGRAY)
+                    })
+                }
+                table.addView(headerRow)
+
+                for (c in cycles) {
+                    val row = TableRow(this)
+                    val values = arrayOf(
+                        "${c.cycleNum}회",
+                        String.format(Locale.KOREA, "%.2f%%", c.mddPercent),
+                        "${c.peakToMddDays}일",
+                        "${c.mddToRecovDays}일",
+                        if (c.nextPeakPrice > 0) String.format(Locale.KOREA, "+%.2f%%", c.recovToNextPeakReturn) else "-",
+                        if (c.nextPeakPrice > 0) "${c.recovToNextPeakDays}일" else "-"
+                    )
+                    for (v in values) {
+                        row.addView(TextView(this).apply {
+                            text = v
+                            setPadding(16, 12, 16, 12)
+                        })
+                    }
+                    table.addView(row)
+                }
+            }
+
+            private fun drawLineChart(prices: List<PriceBar>) {
+                val chart = findViewById<LineChart>(R.id.lineChart)
+                val entries = prices.mapIndexed { index, bar -> Entry(index.toFloat(), bar.close.toFloat()) }
+                chart.data = LineData(LineDataSet(entries, "종가 (Close)").apply {
+                    color = Color.BLUE
+                    setDrawCircles(false)
+                    lineWidth = 1.5f
+                })
+                chart.description.isEnabled = false
+                chart.invalidate()
+            }
+
+            private fun drawHistogram(cycles: List<Cycle>) {
+                val chart = findViewById<BarChart>(R.id.histogramChart)
+                if (cycles.isEmpty()) return
+                val mdds = cycles.map { abs(it.mddPercent) }
+                val minVal = mdds.minOrNull() ?: 0.0
+                val maxVal = mdds.maxOrNull() ?: 100.0
+                val binCount = 10
+                val step = (maxVal - minVal) / binCount
+                val bins = IntArray(binCount)
+                for (m in mdds) {
+                    var idx = ((m - minVal) / step).toInt()
+                    if (idx >= binCount) idx = binCount - 1
+                    bins[idx]++
+                }
+                val entries = ArrayList<BarEntry>()
+                val labels = ArrayList<String>()
+                for (i in 0 until binCount) {
+                    entries.add(BarEntry(i.toFloat(), bins[i].toFloat()))
+                    labels.add(String.format(Locale.KOREA, "%.0f~%.0f%%", minVal + (i * step), minVal + ((i + 1) * step)))
+                }
+                chart.data = BarData(BarDataSet(entries, "MDD 빈도수").apply { color = Color.RED })
+                chart.xAxis.apply {
+                    position = XAxis.XAxisPosition.BOTTOM
+                    valueFormatter = IndexAxisValueFormatter(labels)
+                    granularity = 1f
+                    labelRotationAngle = 45f
+                }
+                chart.description.isEnabled = false
+                chart.invalidate()
+            }
+        }
+        EOF
+
+    # 2. 안드로이드 APK 빌드
     - name: Build APK with Gradle
       run: |
         gradle wrapper --gradle-version 8.4
         chmod +x gradlew
         ./gradlew assembleDebug --stacktrace
 
-    # 3. 완성된 APK 파일 업로드
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
+    # 3. 완성된 APK를 스마트폰에서 즉시 다운로드할 수 있게 릴리즈에 등록
+    - name: Upload APK to Release
+      uses: softprops/action-gh-release@v1
       with:
-        name: StockAI-Installer-APK
-        path: app/build/outputs/apk/debug/app-debug.apk
+        tag_name: v1.0.${{ github.run_number }}
+        name: StockAI App v1.0.${{ github.run_number }}
+        files: app/build/outputs/apk/debug/app-debug.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
