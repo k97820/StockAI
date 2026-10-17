@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="주가 MDD 사이클 분석기"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp"/>
+
+        <EditText
+            android:id="@+id/etTicker"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="종목 티커 (예: AAPL, QQQ, 005930.KS)"
+            android:text="QQQ" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <EditText
+                android:id="@+id/etStartDate"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="시작일 (YYYY-MM-DD)"
+                android:text="2018-01-01" />
+            <EditText
+                android:id="@+id/etEndDate"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:hint="종료일 (YYYY-MM-DD)"
+                android:text="2024-01-01" />
+        </LinearLayout>
+
+        <EditText
+            android:id="@+id/etThresholdMDD"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="평가 MDD 임계치 % (예: 15 입력 시 -15%)"
+            android:inputType="numberDecimal"
+            android:text="15" />
+
+        <Button
+            android:id="@+id/btnAnalyze"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="야후 파이낸스 데이터 분석 시작" />
+
+        <!-- 1. 결과 요약 표 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="■ 사이클 분석 결과 요약"
+            android:textStyle="bold"
+            android:layout_marginTop="16dp"/>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp">
+            <TableLayout
+                android:id="@+id/tableResult"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:stretchColumns="*" />
+        </HorizontalScrollView>
+
+        <!-- 2. 주가 흐름 및 사이클 그래프 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="■ 주가 흐름 그래프"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"/>
+        <com.github.mikephil.charting.charts.LineChart
+            android:id="@+id/lineChart"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:layout_marginTop="8dp"/>
+
+        <!-- 3. MDD 분포 히스토그램 (가로축 10개 구간) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="■ 사이클별 MDD 분포 히스토그램 (10개 구간)"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"/>
+        <com.github.mikephil.charting.charts.BarChart
+            android:id="@+id/histogramChart"
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="32dp"/>
+
+    </LinearLayout>
+</ScrollView>
